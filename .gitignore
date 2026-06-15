@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Conda
+.conda/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data and results
+results/
+*.pdb
+!example_data/
+
+# Model weights and large files
+*.pt
+*.pth
+*.bin
+*.h5
+*.pkl
+*.pickle
+models/
+checkpoints/
+
+# Logs
+*.log
+pipeline.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker volumes
+docker/data/
+
+# Sensitive
+.env
+credentials.json

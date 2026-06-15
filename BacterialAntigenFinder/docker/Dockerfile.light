@@ -1,0 +1,36 @@
+# BacterialAntigenFinder 轻量版Docker镜像
+# 仅包含主控环境，通过外部调用各模型
+
+FROM python:3.9-slim
+
+LABEL maintainer="BacterialAntigenFinder Team"
+LABEL description="细菌抗原AI智能筛选平台 - 轻量版"
+LABEL version="1.0.0"
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1
+ENV LANG=C.UTF-8
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建工作目录
+WORKDIR /app
+
+# 复制依赖文件
+COPY requirements.txt /app/
+
+# 安装Python依赖
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制源代码
+COPY . /app/
+
+# 创建必要目录
+RUN mkdir -p /app/data /app/results
+
+# 设置入口点
+ENTRYPOINT ["python", "main.py"]
+CMD ["--help"]

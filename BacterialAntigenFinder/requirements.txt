@@ -1,0 +1,22 @@
+# BacterialAntigenFinder 主控环境依赖
+# Python 3.9+
+
+# 核心依赖
+pyyaml>=6.0
+pandas>=1.4.0
+numpy>=1.21.0
+
+# 生物信息学
+biopython>=1.79
+
+# 可视化
+plotly>=5.8.0
+jinja2>=3.0.0
+
+# 工具
+tqdm>=4.64.0
+click>=8.0.0
+
+# 测试
+pytest>=7.0.0
+pytest-cov>=3.0.0

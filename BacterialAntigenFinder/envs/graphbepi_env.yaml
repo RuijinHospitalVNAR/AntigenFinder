@@ -1,0 +1,19 @@
+# GraphBepi 环境配置
+# Python 3.9.12, PyTorch 1.12.1, ESM-2, PyTorch Lightning
+name: graphbepi_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9.12
+  - pip
+  - pytorch=1.12.1
+  - cudatoolkit=11.3
+  - pip:
+    - fair-esm==2.0.0
+    - pytorch-lightning==1.6.4
+    - numpy==1.21.5
+    - pandas==1.4.2
+    - biopython>=1.79
+    - tqdm>=4.64.0

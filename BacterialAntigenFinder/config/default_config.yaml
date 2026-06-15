@@ -1,0 +1,122 @@
+# BacterialAntigenFinder 默认配置文件
+# 细菌抗原AI智能筛选平台
+
+# 输入配置
+input:
+  fasta_file: null  # FASTA序列文件路径
+  pdb_dir: null     # PDB结构文件目录
+  organism_type: "gram-"  # 生物类型: gram+, gram-, virus
+
+# 模型配置
+models:
+  enabled:
+    - bepipred
+    - discotope
+    - graphbepi
+    - epigraph
+    - vaxignml
+  
+  # 各模型权重（用于共识评分）
+  weights:
+    bepipred: 0.25
+    discotope: 0.25
+    graphbepi: 0.20
+    epigraph: 0.20
+    vaxignml: 0.10
+  
+  # 各模型阈值
+  thresholds:
+    bepipred: 0.1512
+    discotope: 0.90
+    graphbepi: 0.1763
+    epigraph: 0.1481
+    vaxignml: 0.5
+
+# 模型路径配置
+model_paths:
+  bepipred: "../BepiPred-3.0-main"
+  discotope: "../DiscoTope-3.0-master"
+  graphbepi: "../GraphBepi-main"
+  epigraph: "../EpiGraph-main"
+  vaxignml: "../Vaxign-ML-docker-master"
+
+# Conda环境名称
+conda_envs:
+  bepipred: "bepipred_env"
+  discotope: "discotope_env"
+  graphbepi: "graphbepi_env"
+  epigraph: "epigraph_env"
+  master: "master_env"
+
+# 共识评分配置
+consensus:
+  threshold: 0.5          # 共识评分阈值
+  min_votes: 2            # 最小投票数
+  method: "weighted_avg"  # 评分方法: weighted_avg, majority_vote, max_score
+
+# 免疫原性评估配置
+immunogenicity:
+  protegenicity_threshold: 50.0   # Vaxign-ML保护性抗原阈值（百分位）
+  antigenicity_threshold: 0.4     # VaxiJen抗原性阈值
+  use_vaxijen: true               # 是否使用完整VaxiJen 2.0算法（推荐true）
+  
+  # VaxiJen详细配置
+  vaxijen:
+    # 针对不同生物类型的阈值
+    thresholds:
+      bacteria: 0.4
+      virus: 0.4
+      tumor: 0.5
+      parasite: 0.5
+      fungus: 0.5
+    
+    # 自相关滞后数（影响特征维度）
+    lag: 7
+
+# 输出配置
+output:
+  dir: "./results"
+  top_candidates: 50      # 输出前N个候选
+  formats:
+    - csv
+    - html
+  include_visualization: true
+
+# 运行配置
+runtime:
+  use_gpu: true
+  max_workers: 4          # 并行处理的最大工作线程
+  timeout: 3600           # 单个模型超时时间（秒）
+  continue_on_error: true # 单个模型失败时是否继续
+
+# 细菌种类配置
+species:
+  name: null  # 目标细菌种类名称
+  # 预定义耐药细菌种类
+  predefined:
+    Pseudomonas_aeruginosa:
+      display_name: "铜绿假单胞菌"
+      organism_type: "gram-"
+      drug_resistance: "MDR/XDR"
+    Klebsiella_pneumoniae:
+      display_name: "肺炎克雷伯菌"
+      organism_type: "gram-"
+      drug_resistance: "ESBL/CRE"
+    Acinetobacter_baumannii:
+      display_name: "鲍曼不动杆菌"
+      organism_type: "gram-"
+      drug_resistance: "XDR"
+    Staphylococcus_aureus:
+      display_name: "金黄色葡萄球菌(MRSA)"
+      organism_type: "gram+"
+      drug_resistance: "MRSA"
+    Escherichia_coli:
+      display_name: "大肠杆菌"
+      organism_type: "gram-"
+      drug_resistance: "ESBL"
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: "pipeline.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

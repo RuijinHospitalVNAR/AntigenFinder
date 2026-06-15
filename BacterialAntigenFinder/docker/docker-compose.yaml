@@ -1,0 +1,155 @@
+# BacterialAntigenFinder Docker Compose配置
+version: '3.8'
+
+services:
+  # 主服务 - 抗原筛选Pipeline
+  antigen-finder:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: bacterial-antigen-finder:latest
+    container_name: bacterial-antigen-finder
+
+    # GPU支持（需要nvidia-docker）
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # 环境变量
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - SPECIES=${SPECIES:-}
+      - ORGANISM_TYPE=${ORGANISM_TYPE:-gram-}
+
+    # 卷挂载
+    volumes:
+      # 输入数据
+      - ../data:/app/data:ro
+      # 输出结果
+      - ../results:/app/results
+      # 示例数据
+      - ../example_data:/app/example_data:ro
+      # 模型文件（只读）
+      - ../../BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
+      - ../../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ../../GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ../../EpiGraph-main:/app/models/EpiGraph-main:ro
+
+    # 网络
+    networks:
+      - antigen-network
+
+    # 重启策略
+    restart: "no"
+
+    # 工作目录
+    working_dir: /app
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Vaxign-ML服务（独立容器）
+  vaxign-ml:
+    image: e4ong1031/vaxign-ml:latest
+    container_name: vaxign-ml
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+    environment:
+      - SPECIES=${SPECIES:-}
+      - ORGANISM_TYPE=${ORGANISM_TYPE:-gram-}
+
+    volumes:
+      - ../data:/data:ro
+      - ../results/vaxignml:/output
+      - ../results/vaxignml/_FEATURE/PSORTB:/tmp/results
+
+    networks:
+      - antigen-network
+
+    restart: "no"
+
+    # 默认为空，通过docker-compose run执行
+    entrypoint: ["python3.6", "VaxignML.py"]
+
+  # 测试服务 - 使用示例数据运行Pipeline
+  antigen-finder-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: bacterial-antigen-finder:latest
+    container_name: bacterial-antigen-finder-test
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPECIES=Klebsiella_pneumoniae
+      - ORGANISM_TYPE=gram-
+
+    volumes:
+      - ../example_data:/app/data:ro
+      - ../results/test_run:/app/results
+      - ../../BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
+      - ../../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ../../GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ../../EpiGraph-main:/app/models/EpiGraph-main:ro
+
+    networks:
+      - antigen-network
+
+    restart: "no"
+
+    working_dir: /app
+
+    # 使用示例数据运行测试
+    command: >
+      --fasta /app/data/sample_antigens.fasta
+      --pdb_dir /app/data/
+      --organism_type gram-
+      --species Klebsiella_pneumoniae
+      --output_dir /app/results/
+      --models bepipred,discotope,graphbepi,epigraph
+      --output_format both
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    profiles:
+      - test
+
+# 网络配置
+networks:
+  antigen-network:
+    driver: bridge
+
+# 卷配置（可选，用于持久化）
+volumes:
+  results:
+    driver: local
+  models:
+    driver: local
