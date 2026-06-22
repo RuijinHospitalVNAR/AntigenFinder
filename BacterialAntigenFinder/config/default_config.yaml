@@ -33,12 +33,14 @@ models:
     vaxignml: 0.5
 
 # 模型路径配置
+# 本地运行使用相对路径，Docker运行使用/app/models/路径
+# 可通过环境变量MODEL_BASE_DIR覆盖
 model_paths:
-  bepipred: "../BepiPred-3.0-main"
-  discotope: "../DiscoTope-3.0-master"
-  graphbepi: "../GraphBepi-main"
-  epigraph: "../EpiGraph-main"
-  vaxignml: "../Vaxign-ML-docker-master"
+  bepipred: "/app/models/BepiPred-3.0-main"
+  discotope: "/app/models/DiscoTope-3.0-master"
+  graphbepi: "/app/models/GraphBepi-main"
+  epigraph: "/app/models/EpiGraph-main"
+  vaxignml: "/app/models/Vaxign-ML-docker-master"
 
 # Conda环境名称
 conda_envs:

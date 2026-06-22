@@ -66,6 +66,11 @@ class CandidateRanker:
         """
         self.logger.info("开始候选抗原排序")
         
+        # 空数据检查
+        if consensus_df is None or consensus_df.empty:
+            self.logger.warning("共识评分为空，跳过候选排序")
+            return pd.DataFrame()
+        
         candidates = []
         
         # 获取所有蛋白质ID
@@ -307,6 +312,11 @@ class CandidateRanker:
             排序后的表位级别DataFrame
         """
         self.logger.info("开始表位级别排序")
+
+        # 空数据检查
+        if consensus_df is None or consensus_df.empty:
+            self.logger.warning("共识评分为空，跳过表位排序")
+            return pd.DataFrame()
 
         epitope_rows = []
 

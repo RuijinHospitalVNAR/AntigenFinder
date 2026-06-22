@@ -1,4 +1,10 @@
 # BacterialAntigenFinder Docker Compose配置
+# 支持两种GPU模式:
+#   1. --device方式（推荐，兼容故障GPU的服务器）:
+#      GPU_ID=0 docker compose up antigen-finder
+#   2. nvidia-runtime方式（需要nvidia-container-toolkit正常工作）:
+#      docker compose --profile nvidia-runtime up antigen-finder
+
 version: '3.8'
 
 services:
@@ -10,21 +16,24 @@ services:
     image: bacterial-antigen-finder:latest
     container_name: bacterial-antigen-finder
 
-    # GPU支持（需要nvidia-docker）
+    # GPU支持 - 使用--device方式挂载单个GPU
+    # 通过GPU_ID环境变量指定使用哪个GPU（默认0）
+    devices:
+      - /dev/nvidia${GPU_ID:-0}:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+
+    # 资源限制
     deploy:
       resources:
         limits:
           cpus: '4'
           memory: 16G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
     # 环境变量
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=0
       - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
       - SPECIES=${SPECIES:-}
@@ -43,6 +52,9 @@ services:
       - ../../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
       - ../../GraphBepi-main:/app/models/GraphBepi-main:ro
       - ../../EpiGraph-main:/app/models/EpiGraph-main:ro
+      # NVIDIA库文件（只读）
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.86.10:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro
+      - /lib/x86_64-linux-gnu/libcuda.so.570.86.10:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro
 
     # 网络
     networks:
@@ -97,6 +109,12 @@ services:
     image: bacterial-antigen-finder:latest
     container_name: bacterial-antigen-finder-test
 
+    devices:
+      - /dev/nvidia${GPU_ID:-0}:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+
     deploy:
       resources:
         limits:
@@ -104,6 +122,8 @@ services:
           memory: 8G
 
     environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
       - SPECIES=Klebsiella_pneumoniae
       - ORGANISM_TYPE=gram-
@@ -115,6 +135,8 @@ services:
       - ../../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
       - ../../GraphBepi-main:/app/models/GraphBepi-main:ro
       - ../../EpiGraph-main:/app/models/EpiGraph-main:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.86.10:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro
+      - /lib/x86_64-linux-gnu/libcuda.so.570.86.10:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro
 
     networks:
       - antigen-network

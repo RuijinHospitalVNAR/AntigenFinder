@@ -73,7 +73,16 @@ class ConsensusScorer:
             self.logger.warning("没有预测结果")
             return pd.DataFrame()
         
-        self.logger.info(f"开始计算共识评分，{len(predictions)} 个预测器")
+        # 自适应调整min_votes：不超过实际预测器数量
+        num_predictors = len(predictions)
+        effective_min_votes = min(self.min_votes, num_predictors)
+        if effective_min_votes < self.min_votes:
+            self.logger.info(
+                f"预测器数量({num_predictors})少于min_votes({self.min_votes})，"
+                f"自动调整为{effective_min_votes}"
+            )
+        
+        self.logger.info(f"开始计算共识评分，{num_predictors} 个预测器，min_votes={effective_min_votes}")
         
         # 收集所有残基的预测
         residue_predictions = self._collect_residue_predictions(predictions)
@@ -83,7 +92,7 @@ class ConsensusScorer:
         
         for (protein_id, residue_id), pred_dict in residue_predictions.items():
             result = self._compute_single_consensus(
-                protein_id, residue_id, pred_dict
+                protein_id, residue_id, pred_dict, effective_min_votes
             )
             if result:
                 consensus_results.append(result)
@@ -119,12 +128,16 @@ class ConsensusScorer:
     def _compute_single_consensus(self, 
                                    protein_id: str,
                                    residue_id: int,
-                                   pred_dict: dict) -> Optional[ConsensusResult]:
+                                   pred_dict: dict,
+                                   effective_min_votes: int = None) -> Optional[ConsensusResult]:
         """
         计算单个残基的共识分数
         """
         if not pred_dict:
             return None
+        
+        # 使用传入的min_votes或默认值
+        min_votes = effective_min_votes if effective_min_votes is not None else self.min_votes
         
         # 收集分数和投票
         scores = {}
@@ -153,7 +166,7 @@ class ConsensusScorer:
         # 判断是否为共识表位
         is_consensus_epitope = (
             consensus_score >= self.threshold and 
-            vote_count >= self.min_votes
+            vote_count >= min_votes
         )
         
         return ConsensusResult(

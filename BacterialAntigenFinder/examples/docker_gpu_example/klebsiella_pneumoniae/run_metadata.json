@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "run_time": "2026-06-22T06:29:02.217111",
+  "elapsed_seconds": 89.34,
+  "species": "Klebsiella_pneumoniae",
+  "input": {
+    "fasta_file": "/app/data/klebsiella_pneumoniae_antigens.fasta",
+    "pdb_dir": "/app/data/",
+    "organism_type": "gram-",
+    "num_sequences": 10,
+    "num_structures": 0
+  },
+  "models": [
+    "bepipred"
+  ],
+  "output": {
+    "num_candidates": 8,
+    "num_epitope_candidates": 47,
+    "output_dir": "/app/results/"
+  }
+}

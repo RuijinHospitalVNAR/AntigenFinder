@@ -57,3 +57,26 @@ docker/data/
 # Sensitive
 .env
 credentials.json
+
+# Third-party model source directories (not part of this repo)
+BepiPred-3.0-main/
+DiscoTope-3.0-master/
+GraphBepi-main/
+EpiGraph-main/
+Vaxign-ML-docker-master/
+netMHCpan-main/
+
+# Third-party model archives
+*.zip
+*.jar
+
+# Cursor IDE
+.cursor/
+
+# Test results
+test_results_docker/
+.benchmarks/
+.pytest_cache/
+
+# Docker test outputs
+/tmp/docker_*

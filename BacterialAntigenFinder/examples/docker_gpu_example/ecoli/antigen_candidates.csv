@@ -1,0 +1,6 @@
+﻿Rank,Protein_ID,Sequence_Length,Best_Epitope_Range,Best_Epitope_Sequence,Num_Epitope_Regions,Total_Epitope_Residues,Avg_Consensus_Score,Max_Consensus_Score,Protegenicity_Score,Immunogenicity_Rank,Subcellular_Location,Recommendation,Composite_Score,is_consensus_votes,bepipred_votes,discotope_votes,graphbepi_votes,epigraph_votes,vaxignml_votes,All_Epitope_Regions
+1,OmpC_ECOLI,290,84-106,YNFQGNNSEGADAQTGNKTRLAF,7,169,0.5589,0.6303,0,999,Unknown,LOW,0.6135,169,169,0,0,0,0,25-29(0.53); 44-59(0.56); 84-106(0.60); 121-127(0.56); 137-144(0.54); 185-223(0.56); 251-271(0.58)
+2,OmpA_ECOLI,346,308-322,GNTCDNVKQRAALID,5,135,0.546,0.6339,0,999,Unknown,LOW,0.603,135,135,0,0,0,0,43-55(0.56); 130-139(0.56); 194-212(0.55); 308-322(0.58); 339-345(0.54)
+3,PhoE_ECOLI,300,217-232,DRTNLQEAQPLGNGKK,7,123,0.5513,0.6066,0,999,Unknown,LOW,0.5954,123,123,0,0,0,0,25-29(0.53); 44-59(0.57); 87-101(0.57); 136-143(0.54); 182-192(0.57); 217-232(0.57); 260-270(0.54)
+4,FimH_ECOLI,300,155-164,TNNYNSDDFQ,6,115,0.536,0.62,0,999,Unknown,LOW,0.5924,115,115,0,0,0,0,50-54(0.53); 66-74(0.56); 106-122(0.55); 155-164(0.57); 262-267(0.54); 278-285(0.55)
+5,LamB_ECOLI,210,91-105,YSVAQQNDWEATDPA,5,92,0.5424,0.6057,0,999,Unknown,LOW,0.5822,92,92,0,0,0,0,43-52(0.53); 91-105(0.57); 130-136(0.57); 141-148(0.54); 172-200(0.54)

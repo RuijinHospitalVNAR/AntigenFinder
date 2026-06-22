@@ -131,23 +131,62 @@ chmod +x scripts/setup_envs.sh
 conda activate master_env
 ```
 
-### 方式二：Docker安装
+### 方式二：Docker安装（推荐用于GPU服务器）
+
+#### 镜像构建
+
+镜像基于 `continuumio/miniconda3:latest`，内置5个独立 conda 环境，PyTorch 2.5.1+cu121（兼容 CUDA 12.1）。
 
 ```bash
-# 轻量构建（不含模型权重，需挂载模型目录）
+# 完整构建（含5个conda环境，约30GB）
 cd BacterialAntigenFinder
-docker build -t antigen-finder:latest -f docker/Dockerfile.light .
+docker build -t bacterial-antigen-finder:latest -f docker/Dockerfile .
 
-# 完整构建（含模型，需在项目根目录执行）
-docker build -t antigen-finder:latest -f docker/Dockerfile \
-    --build-arg MODEL_SRC=../ .
+# 轻量构建（不含模型权重，需挂载模型目录）
+docker build -t bacterial-antigen-finder:light -f docker/Dockerfile.light .
+```
+
+#### GPU 挂载方式
+
+本镜像支持两种 GPU 挂载方式：
+
+**方式A：`--device` 直接挂载（推荐，兼容NVML故障场景）**
+
+```bash
+docker run --rm \
+    --device=/dev/nvidia0:/dev/nvidia0 \
+    --device=/dev/nvidiactl:/dev/nvidiactl \
+    --device=/dev/nvidia-uvm:/dev/nvidia-uvm \
+    --device=/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools \
+    -v /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.86.10:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro \
+    -v /lib/x86_64-linux-gnu/libcuda.so.570.86.10:/lib/x86_64-linux-gnu/libcuda.so.1:ro \
+    ... \
+    bacterial-antigen-finder:latest
+```
+
+**方式B：`--gpus all`（需要 nvidia-container-toolkit 正常工作）**
+
+```bash
+docker run --rm --gpus all ... bacterial-antigen-finder:latest
+```
+
+> **提示**：若服务器存在 GPU 硬件故障导致 NVML 初始化失败，请使用方式A。`.so` 文件版本号需根据宿主机实际 NVIDIA 驱动版本调整。
+
+#### Docker Compose 编排
+
+```bash
+# 使用 GPU 0 运行
+GPU_ID=0 docker compose up antigen-finder
+
+# 运行测试服务
+docker compose --profile test up antigen-finder-test
 ```
 
 ### 依赖环境
 
 - Python 3.9+
 - PyYAML, pandas, numpy, biopython, plotly
-- 各预测模型独立Conda环境（见 `envs/` 目录）
+- 各预测模型独立Conda环境（见 `envs/` 目录，Docker镜像已内置）
 
 ## 使用方式
 
@@ -204,19 +243,39 @@ python main.py \
 | `--workers` | int | 4 | 并行工作线程数 |
 | `--config, -c` | str | None | 自定义配置文件路径 |
 
-### Docker运行
+### Docker运行（GPU加速）
+
+以下示例展示如何使用 Docker GPU 运行铜绿假单胞菌抗原筛选。完整的多物种示例请参考 [examples/docker_gpu_example/](examples/docker_gpu_example/)。
 
 ```bash
-docker run --gpus all \
+# 创建输出目录
+mkdir -p results/pa
+
+# GPU Docker 运行（--device方式，兼容NVML故障）
+docker run --rm \
+    --device=/dev/nvidia0:/dev/nvidia0 \
+    --device=/dev/nvidiactl:/dev/nvidiactl \
+    --device=/dev/nvidia-uvm:/dev/nvidia-uvm \
+    --device=/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools \
+    -v /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.86.10:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro \
+    -v /lib/x86_64-linux-gnu/libcuda.so.570.86.10:/lib/x86_64-linux-gnu/libcuda.so.1:ro \
     -v $(pwd)/example_data:/app/data:ro \
-    -v $(pwd)/results:/app/results \
-    -e SPECIES=Pseudomonas_aeruginosa \
-    antigen-finder:latest \
+    -v /path/to/BepiPred-3.0-main:/app/models/BepiPred-3.0-main \
+    -v $(pwd)/results/pa:/app/results \
+    bacterial-antigen-finder:latest \
     --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
-    --pdb_dir /app/data/structures/ \
+    --pdb_dir /app/data/ \
+    --organism_type gram- \
     --species Pseudomonas_aeruginosa \
-    --output_dir /app/results/
+    --models bepipred \
+    --output_dir /app/results/ \
+    --output_format both \
+    --continue_on_error
 ```
+
+> **重要**：BepiPred 模型目录必须以**读写**方式挂载（不加 `:ro`），因为 BepiPred 需要缓存 ESM-2 编码到 `esm_encodings/` 子目录。
+
+> **提示**：`.so` 文件版本号（如 `570.86.10`）需根据宿主机实际 NVIDIA 驱动版本调整，可通过 `ls /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.*` 查询。
 
 ### 端到端测试
 
@@ -302,6 +361,40 @@ results/
     └── immunogenicity_scores.csv # 免疫原性评分
 ```
 
+## 示例结果
+
+我们提供了三种耐药细菌的 Docker GPU 完整运行示例，包含候选抗原列表及 AI 综合评分。详见 [examples/docker_gpu_example/](examples/docker_gpu_example/)。
+
+### 运行结果汇总
+
+| 物种 | 中文名 | 输入序列数 | 抗原候选数 | 表位候选数 | 运行耗时 |
+|------|--------|------------|------------|------------|----------|
+| *Escherichia coli* | 大肠杆菌 | 5 | 5 | 30 | 74.87s |
+| *Pseudomonas aeruginosa* | 铜绿假单胞菌 | 10 | 7 | 47 | 90.70s |
+| *Klebsiella pneumoniae* | 肺炎克雷伯菌 | 10 | 8 | 47 | 89.34s |
+
+### Top 5 候选抗原表位（铜绿假单胞菌示例）
+
+| 排名 | 蛋白质ID | 表位位置 | 表位序列 | 长度 | 共识评分 | 综合评分 |
+|------|----------|----------|----------|------|----------|----------|
+| 1 | OprD_PSEAE | 368-389 | DGTKMSDNNVGYKNYGYGEDGK | 22 | 0.5645 | 0.3263 |
+| 2 | PcrV_PSEAE | 214-236 | SPKQSGELKGLSDEYPFEKDNNP | 23 | 0.5553 | 0.3254 |
+| 3 | PcrV_PSEAE | 165-188 | DAGGIDLVDPTLYGYAVGDPRWKD | 24 | 0.5452 | 0.3242 |
+| 4 | OprF_PSEAE | 120-134 | NITNINSDSQGRQQM | 15 | 0.5754 | 0.3137 |
+| 5 | OprF_PSEAE | 188-200 | KAAPAPEPVADVC | 13 | 0.5454 | 0.2989 |
+
+### Top 5 候选抗原表位（肺炎克雷伯菌示例）
+
+| 排名 | 蛋白质ID | 表位位置 | 表位序列 | 长度 | 共识评分 | 综合评分 |
+|------|----------|----------|----------|------|----------|----------|
+| 1 | KpnO_KLEPN | 179-201 | QNAQDINVGTNNRSSDSDVRFDN | 23 | 0.5669 | 0.3289 |
+| 2 | OmpK36_KLEPN | 177-197 | NSVSGEGTSPTNNGRGALKQN | 21 | 0.5539 | 0.3212 |
+| 3 | OmpA_KLEPN | 31-48 | GFYGNGFQNNNGPTRNDQ | 18 | 0.5587 | 0.3162 |
+| 4 | OmpA_KLEPN | 192-210 | EDAAPVVAPAPAPAPEVAT | 19 | 0.5493 | 0.3156 |
+| 5 | OmpA_KLEPN | 306-320 | GNTCDNVKARAALID | 15 | 0.5743 | 0.3134 |
+
+> 完整结果（含 HTML 报告、残基级评分）请查看 [examples/docker_gpu_example/](examples/docker_gpu_example/) 目录。
+
 ## 项目结构
 
 ```
@@ -333,6 +426,12 @@ BacterialAntigenFinder/
 │   ├── pseudomonas_aeruginosa_antigens.fasta   # 铜绿假单胞菌10个抗原
 │   ├── klebsiella_pneumoniae_antigens.fasta    # 肺炎克雷伯菌10个抗原
 │   └── sample_antigens.fasta                   # 大肠杆菌示例
+├── examples/                            # 完整运行示例
+│   └── docker_gpu_example/              # Docker GPU 多物种示例
+│       ├── README.md                    # 示例说明文档
+│       ├── ecoli/                       # 大肠杆菌运行结果
+│       ├── pseudomonas_aeruginosa/      # 铜绿假单胞菌运行结果
+│       └── klebsiella_pneumoniae/       # 肺炎克雷伯菌运行结果
 ├── docker/                              # Docker部署
 │   ├── Dockerfile                       # 完整构建
 │   ├── Dockerfile.light                 # 轻量构建
@@ -350,6 +449,79 @@ BacterialAntigenFinder/
 ├── envs/                                # Conda环境配置
 └── docs/                                # 文档
 ```
+
+## 故障排查
+
+### 1. Docker GPU 相关问题
+
+#### 问题：`docker run --gpus all` 报 NVML 初始化失败
+
+**原因**：服务器 GPU 硬件故障（如某块 GPU 损坏）导致 `nvidia-container-cli` 无法初始化 NVML。
+
+**解决方案**：改用 `--device` 方式直接挂载 GPU 设备文件，绕过 NVML：
+
+```bash
+docker run --rm \
+    --device=/dev/nvidia0:/dev/nvidia0 \
+    --device=/dev/nvidiactl:/dev/nvidiactl \
+    --device=/dev/nvidia-uvm:/dev/nvidia-uvm \
+    --device=/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools \
+    -v /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.<VERSION>:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro \
+    -v /lib/x86_64-linux-gnu/libcuda.so.<VERSION>:/lib/x86_64-linux-gnu/libcuda.so.1:ro \
+    ... \
+    bacterial-antigen-finder:latest
+```
+
+#### 问题：PyTorch 报 CUDA 版本不匹配
+
+**原因**：pip 默认安装的 PyTorch 可能使用更高版本的 CUDA（如 12.8），与宿主机驱动不兼容。
+
+**解决方案**：构建镜像时指定 CUDA 12.1 版本的 PyTorch（Dockerfile 已配置）：
+
+```dockerfile
+RUN /opt/conda/envs/bepipred_env/bin/pip install --no-cache-dir \
+    torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+```
+
+### 2. BepiPred 相关问题
+
+#### 问题：BepiPred 运行报 `File cannot be opened` 错误
+
+**原因**：BepiPred 需要将 ESM-2 编码缓存到模型目录的 `esm_encodings/` 子目录，若模型目录以只读方式挂载（`:ro`）则无法写入。
+
+**解决方案**：挂载模型目录时**不要**加 `:ro`：
+
+```bash
+# 错误 ❌
+-v /path/to/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
+
+# 正确 ✅
+-v /path/to/BepiPred-3.0-main:/app/models/BepiPred-3.0-main
+```
+
+#### 问题：BepiPred 输出 CSV 列名无法识别
+
+**原因**：BepiPred-3.0 的 `raw_output.csv` 列名为 `Accession, Residue, BepiPred-3.0 score, BepiPred-3.0 linear epitope score`，与早期版本的解析器不兼容。
+
+**解决方案**：已修复，解析器现在自动检测列名。若仍遇到问题，请检查 `src/predictors/bepipred_wrapper.py` 的 `_parse_output` 方法。
+
+### 3. 共识评分相关问题
+
+#### 问题：单模型运行时无共识表位输出
+
+**原因**：默认 `min_votes=2`，单模型运行时 `vote_count` 最大为1，无法满足投票阈值。
+
+**解决方案**：已实现自适应调整机制，`min_votes` 会自动调整为 `min(configured_min_votes, actual_num_predictors)`。若仍遇到问题，可手动指定 `--min_votes 1`。
+
+### 4. 其他问题
+
+#### 问题：`KeyError: 'protein_id'` 当共识评分为空
+
+**解决方案**：已修复，`CandidateRanker` 现在会检查空 DataFrame 并跳过排序。
+
+#### 问题：`_normalize_id` 将 `protein_A.pdb` 识别为 `protein_a` 而非 `protein`
+
+**解决方案**：已修复，现在先移除 `.pdb` 后缀再检查单字母链标识符。
 
 ## 引用
 

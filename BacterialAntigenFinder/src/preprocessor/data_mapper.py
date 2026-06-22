@@ -148,14 +148,14 @@ class DataMapper:
         # 转小写，移除常见后缀
         normalized = id_str.lower()
         
-        # 移除链标识符
-        if '_' in normalized and len(normalized.split('_')[-1]) == 1:
-            normalized = '_'.join(normalized.split('_')[:-1])
-        
-        # 移除常见后缀
+        # 先移除常见后缀（在检查链标识符之前）
         for suffix in ['.pdb', '_model', '_alphafold', '_af']:
             if normalized.endswith(suffix):
                 normalized = normalized[:-len(suffix)]
+        
+        # 移除链标识符（单字母下划线后缀，如 _A, _B）
+        if '_' in normalized and len(normalized.split('_')[-1]) == 1:
+            normalized = '_'.join(normalized.split('_')[:-1])
         
         return normalized
     

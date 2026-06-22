@@ -146,27 +146,84 @@ class BepipredWrapper(BasePredictor):
             try:
                 df = pd.read_csv(raw_output_path)
                 
-                # BepiPred输出格式: protein_id, position, residue, score, ...
+                # BepiPred-3.0输出格式: Accession, Residue, BepiPred-3.0 score, BepiPred-3.0 linear epitope score
+                # 兼容多种列名
+                protein_col = None
+                for col in df.columns:
+                    if col.lower() in ('accession', 'id', 'protein_id'):
+                        protein_col = col
+                        break
+                
+                residue_col = None
+                for col in df.columns:
+                    if col.lower() in ('residue', 'residue_name', 'aa'):
+                        residue_col = col
+                        break
+                
+                score_col = None
+                for col in df.columns:
+                    if 'score' in col.lower() and 'linear' not in col.lower():
+                        score_col = col
+                        break
+                
+                linear_col = None
+                for col in df.columns:
+                    if 'linear' in col.lower():
+                        linear_col = col
+                        break
+                
+                if not protein_col or not residue_col or not score_col:
+                    self.logger.error(f"BepiPred输出列名无法识别: {list(df.columns)}")
+                    return PredictionResult(
+                        predictor_name=self.name,
+                        predictions=[],
+                        metadata={'error': f'Unknown CSV format: {list(df.columns)}'}
+                    )
+                
+                # 按蛋白质分组，为每个蛋白质内的残基编号
+                current_protein = None
+                position_counter = 0
+                
                 for _, row in df.iterrows():
-                    protein_id = str(row.get('ID', row.get('protein_id', '')))
-                    residue_id = int(row.get('Position', row.get('position', 0)))
-                    residue_name = str(row.get('Residue', row.get('residue', 'X')))
-                    score = float(row.get('BepiPred-3.0 score', row.get('score', 0)))
+                    # 提取protein_id（取Accession的第一个单词作为ID）
+                    protein_id_raw = str(row.get(protein_col, ''))
+                    protein_id = protein_id_raw.split()[0] if protein_id_raw else 'unknown'
                     
-                    # 使用滚动平均分数作为线性表位分数
-                    linear_score = float(row.get('BepiPred-3.0 linear epitope score', score))
+                    # 残基位置：同一蛋白质内递增
+                    if protein_id != current_protein:
+                        current_protein = protein_id
+                        position_counter = 1
+                    else:
+                        position_counter += 1
+                    residue_id = position_counter
                     
-                    is_epitope = score >= self.threshold
+                    residue_name = str(row.get(residue_col, 'X'))
+                    raw_score = float(row.get(score_col, 0))
+                    
+                    # 线性表位分数
+                    linear_score = float(row.get(linear_col, raw_score)) if linear_col else raw_score
+                    
+                    is_epitope = raw_score >= self.threshold
+                    
+                    # 归一化分数到0-1范围：threshold映射到0.5
+                    # 这样共识评分阈值0.5对应各预测器自身的阈值
+                    if raw_score >= self.threshold:
+                        normalized_score = 0.5 + min(
+                            (raw_score - self.threshold) / max(1.0 - self.threshold, 0.001), 1.0
+                        ) * 0.5
+                    else:
+                        normalized_score = (raw_score / max(self.threshold, 0.001)) * 0.5
                     
                     predictions.append(EpitopePrediction(
                         protein_id=protein_id,
                         residue_id=residue_id,
                         residue_name=residue_name,
-                        score=score,
+                        score=normalized_score,
                         is_epitope=is_epitope,
-                        confidence=score,
+                        confidence=normalized_score,
                         additional_info={
                             'linear_score': linear_score,
+                            'raw_score': raw_score,
                             'predictor': 'bepipred'
                         }
                     ))
@@ -174,7 +231,7 @@ class BepipredWrapper(BasePredictor):
                     # 累计蛋白质分数
                     if protein_id not in protein_scores:
                         protein_scores[protein_id] = []
-                    protein_scores[protein_id].append(score)
+                    protein_scores[protein_id].append(normalized_score)
                 
             except Exception as e:
                 self.logger.error(f"解析BepiPred输出失败: {e}")

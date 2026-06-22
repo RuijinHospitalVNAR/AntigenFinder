@@ -1,26 +1,19 @@
 # DiscoTope-3.0 环境配置
-# Python 3.9, PyTorch 1.11.0, ESM-IF1, PyTorch Geometric
+# 使用CUDA 12.1兼容的PyTorch
 name: discotope_env
 channels:
-  - pytorch
-  - pyg
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9
+  - python=3.10
   - pip
-  - pytorch=1.11.0
-  - cudatoolkit=11.3
-  - pyg
+  - numpy>=1.24
+  - pandas>=1.4
+  - biopython>=1.80
+  - biotite>=0.40
+  - scikit-learn>=1.0
+  - joblib>=1.5
   - pip:
-    - torch-scatter==2.0.9
-    - torch-sparse==0.6.15
-    - torch-geometric==2.1.0.post1
-    - biopython==1.80
-    - biotite==0.40
+    - torch-geometric>=2.4
     - xgboost>=2.0
-    - pygam==0.9.0
-    - numpy>=1.24.0
-    - pandas>=1.4.0
-    - joblib>=1.5
-    - scikit-learn>=1.0
+    - pygam>=0.9.0

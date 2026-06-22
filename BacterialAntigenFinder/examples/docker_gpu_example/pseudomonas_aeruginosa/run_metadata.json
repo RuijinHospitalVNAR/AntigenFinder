@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "run_time": "2026-06-22T06:27:03.585402",
+  "elapsed_seconds": 90.7,
+  "species": "Pseudomonas_aeruginosa",
+  "input": {
+    "fasta_file": "/app/data/pseudomonas_aeruginosa_antigens.fasta",
+    "pdb_dir": "/app/data/",
+    "organism_type": "gram-",
+    "num_sequences": 10,
+    "num_structures": 0
+  },
+  "models": [
+    "bepipred"
+  ],
+  "output": {
+    "num_candidates": 7,
+    "num_epitope_candidates": 47,
+    "output_dir": "/app/results/"
+  }
+}
