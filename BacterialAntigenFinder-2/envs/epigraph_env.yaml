@@ -1,0 +1,24 @@
+# EpiGraph 环境配置
+# 使用CUDA 12.1兼容的PyTorch
+name: epigraph_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy>=1.24
+  - pandas>=1.4
+  - biopython>=1.80
+  - biotite>=0.40,<1.0
+  - scipy>=1.7
+  - scikit-learn>=1.0
+  - networkx>=2.7
+  - tqdm>=4.64.0
+  - pip:
+    - torch-geometric==2.4.0
+    - fair-esm>=2.0.0
+    - graphein>=1.4
+    - biopandas>=0.2.9
+    - wget>=3.2
+    - transformers>=4.15
