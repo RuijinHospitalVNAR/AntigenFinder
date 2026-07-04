@@ -8,7 +8,7 @@
 #   # 或指定GPU:
 #   GPU_ID=3 docker compose up antigen-finder
 
-FROM continuumio/miniconda3:24.3.0-0 AS base
+FROM docker.m.daocloud.io/continuumio/miniconda3:latest AS base
 
 LABEL maintainer="BacterialAntigenFinder Team"
 LABEL description="细菌抗原AI智能筛选平台"
@@ -20,6 +20,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
+
+# 替换为国内镜像源（国内网络加速）
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/ && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/ && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/ && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/bioconda/ && \
+    conda config --set show_channel_urls yes
+
+# 设置pip国内镜像
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
