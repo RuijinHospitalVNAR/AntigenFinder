@@ -135,11 +135,17 @@ if [ "$BUILD_TYPE" = "full" ]; then
         echo "警告: 以下模型目录缺失: ${MISSING_MODELS[*]}"
         echo "完整构建需要所有模型目录位于: ${PARENT_DIR}/"
         echo ""
-        read -p "是否继续构建（缺失模型将不会包含在镜像中）? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "构建已取消"
-            exit 0
+
+        # 检查是否在交互式终端中运行
+        if [ -t 0 ]; then
+            read -p "是否继续构建（缺失模型将不会包含在镜像中）? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "构建已取消"
+                exit 0
+            fi
+        else
+            echo "非交互模式: 跳过缺失模型，继续构建"
         fi
     fi
 

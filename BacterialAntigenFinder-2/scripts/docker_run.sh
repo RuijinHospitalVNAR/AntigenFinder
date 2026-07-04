@@ -1,5 +1,6 @@
 #!/bin/bash
 # BacterialAntigenFinder Docker运行脚本
+# 用法: ./docker_run.sh -f antigens.fasta -p structures/ -o results/
 
 set -e
 
@@ -98,43 +99,47 @@ fi
 # 创建输出目录
 mkdir -p "$OUTPUT_DIR"
 
-# 构建Docker命令
-DOCKER_CMD="docker run --rm"
+# 构建Docker运行参数（使用数组避免eval注入风险）
+DOCKER_ARGS=("docker" "run" "--rm")
 
 # GPU支持
 if [ "$USE_GPU" = true ]; then
-    DOCKER_CMD="$DOCKER_CMD --gpus all"
+    DOCKER_ARGS+=("--gpus" "all")
 fi
 
-# 挂载卷
-DOCKER_CMD="$DOCKER_CMD -v $FASTA_FILE:/data/input.fasta:ro"
-DOCKER_CMD="$DOCKER_CMD -v $PDB_DIR:/data/structures:ro"
-DOCKER_CMD="$DOCKER_CMD -v $OUTPUT_DIR:/results"
+# 挂载卷 - 统一使用 /app/data 和 /app/results 路径
+DOCKER_ARGS+=("-v" "${FASTA_FILE}:/app/data/input.fasta:ro")
+DOCKER_ARGS+=("-v" "${PDB_DIR}:/app/data/structures:ro")
+DOCKER_ARGS+=("-v" "${OUTPUT_DIR}:/app/results")
 
-# 添加模型目录挂载
-DOCKER_CMD="$DOCKER_CMD -v $PROJECT_DIR/../BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro"
-DOCKER_CMD="$DOCKER_CMD -v $PROJECT_DIR/../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro"
-DOCKER_CMD="$DOCKER_CMD -v $PROJECT_DIR/../GraphBepi-main:/app/models/GraphBepi-main:ro"
-DOCKER_CMD="$DOCKER_CMD -v $PROJECT_DIR/../EpiGraph-main:/app/models/EpiGraph-main:ro"
+# 添加模型目录挂载（如果存在）
+MODELS_BASE="$(dirname "$PROJECT_DIR")"
+for model in BepiPred-3.0-main DiscoTope-3.0-master GraphBepi-main EpiGraph-main; do
+    if [ -d "${MODELS_BASE}/${model}" ]; then
+        DOCKER_ARGS+=("-v" "${MODELS_BASE}/${model}:/app/models/${model}:ro")
+    fi
+done
 
-# 镜像和参数
-DOCKER_CMD="$DOCKER_CMD $IMAGE_NAME"
-DOCKER_CMD="$DOCKER_CMD --fasta /data/input.fasta"
-DOCKER_CMD="$DOCKER_CMD --pdb_dir /data/structures/"
-DOCKER_CMD="$DOCKER_CMD --output_dir /results/"
-DOCKER_CMD="$DOCKER_CMD --organism_type $ORGANISM_TYPE"
+# 镜像
+DOCKER_ARGS+=("${IMAGE_NAME}")
+
+# Pipeline参数
+DOCKER_ARGS+=("--fasta" "/app/data/input.fasta")
+DOCKER_ARGS+=("--pdb_dir" "/app/data/structures/")
+DOCKER_ARGS+=("--output_dir" "/app/results/")
+DOCKER_ARGS+=("--organism_type" "${ORGANISM_TYPE}")
 
 if [ "$USE_GPU" = false ]; then
-    DOCKER_CMD="$DOCKER_CMD --cpu_only"
+    DOCKER_ARGS+=("--cpu_only")
 fi
 
 # 显示命令
 echo "运行Docker命令:"
-echo "$DOCKER_CMD"
+echo "${DOCKER_ARGS[*]}"
 echo ""
 
-# 执行
-eval $DOCKER_CMD
+# 执行（数组方式，安全且支持空格路径）
+"${DOCKER_ARGS[@]}"
 
 echo ""
 echo "完成! 结果保存在: $OUTPUT_DIR"

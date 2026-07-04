@@ -67,6 +67,18 @@ services:
     # 工作目录
     working_dir: /app
 
+    # 默认命令：使用 docker-compose 示例数据运行分析
+    # 用户可通过环境变量覆盖: SPECIES=Klebsiella_pneumoniae docker compose up antigen-finder
+    # 或直接用 docker compose run 传参覆盖
+    command: >
+      --fasta /app/example_data/${EXAMPLE_FASTA:-sample_antigens.fasta}
+      --pdb_dir /app/data/
+      --organism_type ${ORGANISM_TYPE:-gram-}
+      --species ${SPECIES:-}
+      --output_dir /app/results/
+      --output_format both
+      --log_level INFO
+
     # 日志配置
     logging:
       driver: "json-file"

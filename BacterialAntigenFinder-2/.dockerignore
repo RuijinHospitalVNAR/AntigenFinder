@@ -1,0 +1,52 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+*.egg-info
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test and results (avoid including in build context)
+test_results/
+test_results_docker/
+results/
+
+# Docker files (already copied explicitly)
+docker/
+
+# Scripts (not needed in image)
+scripts/
+
+# Documentation
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# Conda (environments are created by Dockerfile from envs/)
+*.tar.bz2

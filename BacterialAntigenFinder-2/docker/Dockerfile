@@ -28,16 +28,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
     dssp \
-    libcifpp-data \
+    libcifpp-dev \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Download CCD components.cif required by mkdssp
 RUN mkdir -p /var/cache/libcifpp && \
-    curl -o /var/cache/libcifpp/components.cif \
+    curl --fail -L -o /var/cache/libcifpp/components.cif \
         https://files.wwpdb.org/pub/pdb/data/monomers/components.cif && \
-    curl -o /var/cache/libcifpp/mmcif_pdbx.dic \
+    curl --fail -L -o /var/cache/libcifpp/mmcif_pdbx.dic \
         https://mmcif.wwpdb.org/dictionaries/ascii/mmcif_pdbx_v50.dic
 
 # 创建工作目录
@@ -96,7 +96,7 @@ RUN conda init bash
 SHELL ["/bin/bash", "-c"]
 
 # 数据和结果目录声明
-VOLUME ["/app/data", "/app/results"]
+VOLUME ["/app/data", "/app/results", "/app/models"]
 
 # 暴露端口（如果需要API服务）
 EXPOSE 8000
