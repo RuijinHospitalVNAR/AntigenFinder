@@ -1,0 +1,20 @@
+# Shell scripts must use LF in Docker containers
+*.sh text eol=lf
+Dockerfile text eol=lf
+Dockerfile.light text eol=lf
+
+# YAML configs
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Python source
+*.py text eol=lf
+
+# CSV data
+*.csv text eol=lf
+
+# JSON
+*.json text eol=lf
+
+# Markdown
+*.md text eol=lf
