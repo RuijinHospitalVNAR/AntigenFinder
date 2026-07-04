@@ -13,8 +13,6 @@
 #   Windows Docker Desktop: 在Docker Desktop设置中启用WSL2 GPU支持
 #   Linux: 使用 deploy.resources.devices 或 nvidia-container-toolkit
 
-version: '3.8'
-
 services:
   # 主服务 - 抗原筛选Pipeline
   antigen-finder:
