@@ -8,7 +8,7 @@
 #   # 或指定GPU:
 #   GPU_ID=3 docker compose up antigen-finder
 
-FROM continuumio/miniconda3:latest AS base
+FROM continuumio/miniconda3:24.3.0-0 AS base
 
 LABEL maintainer="BacterialAntigenFinder Team"
 LABEL description="细菌抗原AI智能筛选平台"
