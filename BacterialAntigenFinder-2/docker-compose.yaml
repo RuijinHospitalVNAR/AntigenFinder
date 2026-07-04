@@ -1,0 +1,143 @@
+# BacterialAntigenFinder Docker Compose配置
+# 
+# 使用方式（在项目根目录）:
+#   1. 构建镜像:   docker compose build
+#   2. 运行测试:   docker compose --profile test up antigen-finder-test
+#   3. 自定义运行: docker compose run --rm antigen-finder \
+#                    --fasta /app/example_data/sample_antigens.fasta \
+#                    --pdb_dir /app/data/structures/ \
+#                    --species Pseudomonas_aeruginosa \
+#                    --output_dir /app/results/
+#
+# 注意:
+#   - 模型目录需放在 ../models/ 下，或设置 MODEL_BASE_DIR 环境变量
+#   - GPU: Linux需安装nvidia-container-toolkit
+
+version: '3.8'
+
+services:
+  # 主服务 - 抗原筛选Pipeline
+  antigen-finder:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: bacterial-antigen-finder:latest
+    container_name: bacterial-antigen-finder
+
+    # GPU支持 (Linux nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          cpus: '4'
+          memory: 16G
+
+    # 环境变量
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPECIES=${SPECIES:-}
+      - ORGANISM_TYPE=${ORGANISM_TYPE:-gram-}
+
+    # 卷挂载
+    volumes:
+      # 输入数据
+      - ./data:/app/data:ro
+      # 输出结果
+      - ./results:/app/results
+      # 示例数据
+      - ./example_data:/app/example_data:ro
+      # 模型文件（只读）- 路径可通过 MODEL_BASE_DIR 环境变量覆盖
+      - ${MODEL_BASE_DIR:-../models}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
+      - ${MODEL_BASE_DIR:-../models}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ${MODEL_BASE_DIR:-../models}/GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ${MODEL_BASE_DIR:-../models}/EpiGraph-main:/app/models/EpiGraph-main:ro
+
+    networks:
+      - antigen-network
+
+    restart: "no"
+
+    working_dir: /app
+
+    # 默认命令：运行示例数据
+    command: >
+      --fasta /app/example_data/${EXAMPLE_FASTA:-sample_antigens.fasta}
+      --pdb_dir /app/data/
+      --organism_type ${ORGANISM_TYPE:-gram-}
+      --species ${SPECIES:-}
+      --output_dir /app/results/
+      --output_format both
+      --log_level INFO
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 测试服务 - 使用示例数据运行Pipeline验证
+  antigen-finder-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: bacterial-antigen-finder:latest
+    container_name: bacterial-antigen-finder-test
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          cpus: '2'
+          memory: 8G
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPECIES=Pseudomonas_aeruginosa
+      - ORGANISM_TYPE=gram-
+
+    volumes:
+      - ./example_data:/app/data:ro
+      - ./results/test_run:/app/results
+      - ${MODEL_BASE_DIR:-../models}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
+      - ${MODEL_BASE_DIR:-../models}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ${MODEL_BASE_DIR:-../models}/GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ${MODEL_BASE_DIR:-../models}/EpiGraph-main:/app/models/EpiGraph-main:ro
+
+    networks:
+      - antigen-network
+
+    restart: "no"
+
+    working_dir: /app
+
+    # 使用示例数据运行测试
+    command: >
+      --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta
+      --pdb_dir /app/data/structures/
+      --organism_type gram-
+      --species Pseudomonas_aeruginosa
+      --output_dir /app/results/
+      --models bepipred,discotope,graphbepi,epigraph
+      --output_format both
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    profiles:
+      - test
+
+# 网络配置
+networks:
+  antigen-network:
+    driver: bridge
