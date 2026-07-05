@@ -1,9 +1,0 @@
-﻿# Species: Pseudomonas_aeruginosa
-Species,Rank,Protein_ID,Sequence_Length,Best_Epitope_Range,Best_Epitope_Sequence,Num_Epitope_Regions,Total_Epitope_Residues,Avg_Consensus_Score,Max_Consensus_Score,Protegenicity_Score,Immunogenicity_Rank,Subcellular_Location,Recommendation,Composite_Score,is_consensus_votes,bepipred_votes,discotope_votes,graphbepi_votes,epigraph_votes,vaxignml_votes,All_Epitope_Regions
-Pseudomonas_aeruginosa,1,ToxA_PSEAE,638,509-520,DQEPDARGRIRN,16,266,0.5265,0.6007,0,999,Unknown,LOW,0.6208,266,266,0,0,0,0,75-79(0.53); 103-109(0.54); 127-137(0.54); 146-156(0.53); 181-187(0.52); 205-212(0.53); 240-246(0.52); 255-263(0.52); 299-304(0.54); 343-349(0.52); 416-421(0.52); 509-520(0.55); 571-576(0.54); 598-602(0.52); 613-617(0.53); 627-636(0.54)
-Pseudomonas_aeruginosa,2,OprF_PSEAE,350,120-134,NITNINSDSQGRQQM,8,130,0.5396,0.6303,0,999,Unknown,LOW,0.5997,130,130,0,0,0,0,40-46(0.54); 80-87(0.55); 120-134(0.58); 164-171(0.56); 188-200(0.55); 219-223(0.52); 232-237(0.54); 285-291(0.53)
-Pseudomonas_aeruginosa,3,OprD_PSEAE,443,368-389,DGTKMSDNNVGYKNYGYGEDGK,8,122,0.5353,0.606,0,999,Unknown,LOW,0.5922,122,122,0,0,0,0,28-32(0.51); 53-63(0.56); 112-118(0.54); 188-192(0.53); 198-203(0.52); 310-316(0.53); 368-389(0.56); 421-428(0.54)
-Pseudomonas_aeruginosa,4,PcrV_PSEAE,294,214-236,SPKQSGELKGLSDEYPFEKDNNP,4,129,0.5326,0.5941,0,999,Unknown,LOW,0.5519,129,129,0,0,0,0,157-163(0.53); 165-188(0.55); 199-206(0.54); 214-236(0.56)
-Pseudomonas_aeruginosa,5,LasB_PSEAE,498,240-250,NSSTDDSKTTP,4,100,0.5356,0.6286,0,999,Unknown,LOW,0.5483,100,100,0,0,0,0,240-250(0.56); 311-315(0.55); 401-405(0.54); 411-418(0.54)
-Pseudomonas_aeruginosa,6,PilA_PSEAE,149,97-101,EDSGA,4,53,0.5299,0.5739,0,999,Unknown,LOW,0.5127,53,53,0,0,0,0,69-74(0.53); 97-101(0.54); 109-116(0.54); 137-142(0.53)
-Pseudomonas_aeruginosa,7,Azurin_PSEAE,148,58-63,NLPKNV,3,56,0.552,0.628,0,999,Unknown,LOW,0.4882,56,56,0,0,0,0,58-63(0.58); 87-92(0.56); 108-112(0.56)
