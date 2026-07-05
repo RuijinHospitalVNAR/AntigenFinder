@@ -5,6 +5,8 @@ DiscoTope-3.0 包装器
 """
 
 import os
+import shlex
+import subprocess
 import tempfile
 import shutil
 from pathlib import Path
@@ -92,32 +94,35 @@ class DiscotopeWrapper(BasePredictor):
             # 确定结构类型
             struc_type = self._determine_structure_type(structures)
             
-            # 构建命令参数
-            args = [
-                '--pdb_dir', pdb_dir,
-                '--out_dir', output_dir,
-                '--struc_type', struc_type,
-                '--calibrated_score_epi_threshold', str(self.threshold)
-            ]
-            
-            if not self.use_gpu:
-                args.append('--cpu_only')
-            
-            # 添加模型目录
-            if self.models_dir.exists():
-                args.extend(['--models_dir', str(self.models_dir)])
-            
             self.logger.info(f"运行DiscoTope-3.0，输入 {len(structures)} 个结构")
             
             # 运行预测
             # DiscoTope 需要从模型根目录导入 discotope3 包
-            result = self.run_in_env(
-                str(self.script_path),
-                args,
-                working_dir=str(self.model_path),
-                env_vars={
-                    'PYTHONPATH': str(self.model_path)
-                }
+            # conda run 不传递 PYTHONPATH env，改用 shell 命令内嵌
+            model_path_str = str(self.model_path)
+            script_path_str = str(self.script_path)
+            shell_cmd = (
+                f"cd {shlex.quote(model_path_str)} && "
+                f"PYTHONPATH={shlex.quote(model_path_str)} "
+                f"conda run -n {shlex.quote(self.env_name)} "
+                f"python {shlex.quote(script_path_str)} "
+                f"--pdb_dir {shlex.quote(pdb_dir)} "
+                f"--out_dir {shlex.quote(output_dir)} "
+                f"--struc_type {shlex.quote(struc_type)} "
+                f"--calibrated_score_epi_threshold {self.threshold}"
+            )
+            if not self.use_gpu:
+                shell_cmd += " --cpu_only"
+            if self.models_dir.exists():
+                shell_cmd += f" --models_dir {shlex.quote(str(self.models_dir))}"
+            
+            result = subprocess.run(
+                shell_cmd,
+                shell=True,
+                executable='/bin/bash',
+                capture_output=True,
+                text=True,
+                timeout=getattr(self, 'timeout', 3600)
             )
             
             if result.returncode != 0:

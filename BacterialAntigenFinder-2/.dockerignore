@@ -32,9 +32,6 @@ test_results/
 test_results_docker/
 results/
 
-# Docker files (already copied explicitly)
-docker/
-
 # Scripts (not needed in image)
 scripts/
 

@@ -1,17 +1,16 @@
 # BacterialAntigenFinder Docker Compose配置
 #
 # 使用方式:
-#   1. 构建镜像:   docker compose build
-#   2. 运行测试:   docker compose run --rm antigen-finder-test
-#   3. 自定义运行: docker compose run --rm antigen-finder \
+#   1. 构建镜像:   docker compose -f docker/docker-compose.yaml build
+#   2. 运行测试:   docker compose -f docker/docker-compose.yaml run --rm antigen-finder-test
+#   3. 自定义运行: docker compose -f docker/docker-compose.yaml run --rm antigen-finder \
 #                    --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
 #                    --pdb_dir /app/data/structures/ \
 #                    --species Pseudomonas_aeruginosa \
 #                    --output_dir /app/results/
 #
 # GPU支持:
-#   Windows Docker Desktop: 在Docker Desktop设置中启用WSL2 GPU支持
-#   Linux: 使用 deploy.resources.devices 或 nvidia-container-toolkit
+#   Linux: 需要 nvidia-container-toolkit
 
 services:
   # 主服务 - 抗原筛选Pipeline
@@ -22,8 +21,7 @@ services:
     image: bacterial-antigen-finder:latest
     container_name: bacterial-antigen-finder
 
-    # GPU支持 (Linux nvidia-container-toolkit)
-    # Windows Docker Desktop 通过 WSL2 自动处理 GPU
+    # GPU支持 (需要 nvidia-container-toolkit)
     deploy:
       resources:
         reservations:
@@ -41,7 +39,7 @@ services:
       - SPECIES=${SPECIES:-}
       - ORGANISM_TYPE=${ORGANISM_TYPE:-gram-}
 
-    # 卷挂载 - 路径相对于docker-compose.yaml所在目录
+    # 卷挂载
     volumes:
       # 输入数据（自定义数据放这里）
       - ../data:/app/data:ro
@@ -49,11 +47,14 @@ services:
       - ../results:/app/results
       # 示例数据
       - ../example_data:/app/example_data:ro
-      # 模型文件（只读）- 路径可通过 MODEL_BASE_DIR 环境变量覆盖
-      - ${MODEL_BASE_DIR:-../models}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
-      - ${MODEL_BASE_DIR:-../models}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
-      - ${MODEL_BASE_DIR:-../models}/GraphBepi-main:/app/models/GraphBepi-main:ro
-      - ${MODEL_BASE_DIR:-../models}/EpiGraph-main:/app/models/EpiGraph-main:ro
+      # 模型文件
+      # 注意: BepiPred 需要可写（缓存ESM编码），不加 :ro
+      - ${MODEL_BASE_DIR:-..}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main
+      - ${MODEL_BASE_DIR:-..}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ${MODEL_BASE_DIR:-..}/GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ${MODEL_BASE_DIR:-..}/EpiGraph-main:/app/models/EpiGraph-main:ro
+      # ESM预下载模型缓存（建议提前下载，避免运行时联网）
+      - ${ESM_CACHE_DIR:-../esm_cache}:/root/.cache/torch/hub/checkpoints
 
     # 网络
     networks:
@@ -65,12 +66,10 @@ services:
     # 工作目录
     working_dir: /app
 
-    # 默认命令：使用 docker-compose 示例数据运行分析
-    # 用户可通过环境变量覆盖: SPECIES=Klebsiella_pneumoniae docker compose up antigen-finder
-    # 或直接用 docker compose run 传参覆盖
+    # 默认命令
     command: >
       --fasta /app/example_data/${EXAMPLE_FASTA:-sample_antigens.fasta}
-      --pdb_dir /app/data/
+      --pdb_dir /app/data/structures/
       --organism_type ${ORGANISM_TYPE:-gram-}
       --species ${SPECIES:-}
       --output_dir /app/results/
@@ -101,7 +100,7 @@ services:
               capabilities: [gpu]
         limits:
           cpus: '2'
-          memory: 8G
+          memory: 16G
 
     environment:
       - PYTHONUNBUFFERED=1
@@ -111,10 +110,13 @@ services:
     volumes:
       - ../example_data:/app/data:ro
       - ../results/test_run:/app/results
-      - ${MODEL_BASE_DIR:-../models}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
-      - ${MODEL_BASE_DIR:-../models}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
-      - ${MODEL_BASE_DIR:-../models}/GraphBepi-main:/app/models/GraphBepi-main:ro
-      - ${MODEL_BASE_DIR:-../models}/EpiGraph-main:/app/models/EpiGraph-main:ro
+      # 注意: BepiPred 需要可写
+      - ${MODEL_BASE_DIR:-..}/BepiPred-3.0-main:/app/models/BepiPred-3.0-main
+      - ${MODEL_BASE_DIR:-..}/DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro
+      - ${MODEL_BASE_DIR:-..}/GraphBepi-main:/app/models/GraphBepi-main:ro
+      - ${MODEL_BASE_DIR:-..}/EpiGraph-main:/app/models/EpiGraph-main:ro
+      # ESM预下载模型缓存
+      - ${ESM_CACHE_DIR:-../esm_cache}:/root/.cache/torch/hub/checkpoints
 
     networks:
       - antigen-network
@@ -123,7 +125,6 @@ services:
 
     working_dir: /app
 
-    # 使用示例数据运行测试
     command: >
       --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta
       --pdb_dir /app/data/structures/

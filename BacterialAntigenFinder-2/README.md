@@ -110,9 +110,225 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 安装
+---
 
-### 方式一：Conda环境安装（推荐）
+## Docker 安装（推荐）
+
+此方式已验证在 Linux (Ubuntu 20.04+) 和 Windows (WSL2 + Docker Desktop) 上可成功运行。
+
+### 前置条件
+
+| 需求 | 说明 |
+|------|------|
+| **操作系统** | Linux（推荐 Ubuntu 20.04+）或 Windows WSL2 + Docker Desktop |
+| **Docker** | 20.10+、Docker Compose v2 |
+| **GPU（可选）** | NVIDIA GPU + 驱动 + [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+| **内存** | GPU 模式 ≥ 8GB；CPU 模式 ≥ 16GB（仅 BepiPred + DiscoTope 需 8GB） |
+| **磁盘** | ≥ 60GB（镜像约 30GB + 模型文件约 10GB + 示例数据） |
+
+### Step 1: 克隆项目
+
+```bash
+git clone https://github.com/RuijinHospitalVNAR/AntigenFinder.git
+cd AntigenFinder
+```
+
+### Step 2: 准备预测模型
+
+4 个预测模型需要克隆到 `AntigenFinder/` 目录下（与 `BacterialAntigenFinder-2/` 同级）：
+
+```bash
+# 在 AntigenFinder/ 目录下
+git clone https://github.com/mabu-car/BepiPred-3.0.git BepiPred-3.0-main
+git clone https://github.com/mabu-car/DiscoTope-3.0.git DiscoTope-3.0-master
+git clone https://github.com/GraphBepi/GraphBepi.git GraphBepi-main
+git clone https://github.com/GraphBepi/EpiGraph.git EpiGraph-main
+```
+
+> **注意**：BepiPred 模型运行时会在 `esm_encodings/` 目录下缓存 ESM-2 编码结果，因此**不要**对该目录设置只读权限。
+
+### Step 2b: 解压 DiscoTope 模型权重
+
+DiscoTope-3.0 的 XGBoost 模型权重被压缩在 `models.zip` 中，需要手动解压：
+
+```bash
+cd DiscoTope-3.0-master
+# Linux
+unzip models.zip -d models/
+# 如果解压后嵌套了 models/models/ 目录，手动移出
+if [ -d models/models ]; then
+    mv models/models/* models/ && rmdir models/models
+fi
+cd ..
+```
+
+### Step 3: 预下载 ESM 模型文件（重要）
+
+BepiPred、GraphBepi、EpiGraph 都依赖 Meta 的 ESM 蛋白质语言模型权重文件。这些文件从 `dl.fbaipublicfiles.com` 下载，**国内用户可能无法直接访问**，建议提前下载。
+
+```bash
+mkdir -p esm_cache && cd esm_cache
+
+# 方式一：直接下载（海外服务器）
+wget https://dl.fbaipublicfiles.com/fair-esm/models/esm2_t33_650M_UR50D.pt
+wget https://dl.fbaipublicfiles.com/fair-esm/models/esm2_t36_3B_UR50D.pt
+wget https://dl.fbaipublicfiles.com/fair-esm/regression/esm2_t33_650M_UR50D-contact-regression.pt
+wget https://dl.fbaipublicfiles.com/fair-esm/regression/esm2_t36_3B_UR50D-contact-regression.pt
+# GraphBepi/EpiGraph 需要
+wget https://dl.fbaipublicfiles.com/fair-esm/models/esm_if1_gvp4_t16_142M_UR50.pt
+
+# 方式二：HuggingFace 镜像（国内推荐）
+wget https://hf-mirror.com/facebook/esm2_t33_650M_UR50D/resolve/main/model.pt \
+    -O esm2_t33_650M_UR50D.pt
+wget https://hf-mirror.com/facebook/esm2_t36_3B_UR50D/resolve/main/model.pt \
+    -O esm2_t36_3B_UR50D.pt
+wget https://hf-mirror.com/facebook/esm2_t33_650M_UR50D/resolve/main/contact_regression.pt \
+    -O esm2_t33_650M_UR50D-contact-regression.pt
+wget https://hf-mirror.com/facebook/esm2_t36_3B_UR50D/resolve/main/contact_regression.pt \
+    -O esm2_t36_3B_UR50D-contact-regression.pt
+wget https://hf-mirror.com/facebook/esm_if1_gvp4_t16_142M_UR50/resolve/main/model.pt \
+    -O esm_if1_gvp4_t16_142M_UR50.pt
+
+cd ..
+```
+
+| 文件 | 大小 | 被谁使用 |
+|------|------|----------|
+| `esm2_t33_650M_UR50D.pt` | ~2.5 GB | BepiPred |
+| `esm2_t33_650M_UR50D-contact-regression.pt` | ~4 KB | BepiPred |
+| `esm2_t36_3B_UR50D.pt` | ~5.4 GB | GraphBepi |
+| `esm2_t36_3B_UR50D-contact-regression.pt` | ~7 KB | GraphBepi |
+| `esm_if1_gvp4_t16_142M_UR50.pt` | ~1.6 GB | GraphBepi, EpiGraph |
+
+### Step 4: 目录结构确认
+
+完成上述步骤后，确保如下结构：
+
+```
+AntigenFinder/
+├── BepiPred-3.0-main/           # BepiPred 模型（需可写）
+├── DiscoTope-3.0-master/        # DiscoTope 模型（已解压 models.zip）
+│   └── models/                  # 含 100+ 个 XGBoost JSON 文件
+├── GraphBepi-main/              # GraphBepi 模型
+├── EpiGraph-main/               # EpiGraph 模型
+├── esm_cache/                   # ESM 预下载权重（映射到容器内 /root/.cache/torch/hub/checkpoints）
+│   ├── esm2_t33_650M_UR50D.pt
+│   ├── esm2_t36_3B_UR50D.pt
+│   ├── esm_if1_gvp4_t16_142M_UR50.pt
+│   └── ...-regression.pt
+└── BacterialAntigenFinder-2/    # 项目代码
+    ├── docker/
+    │   ├── Dockerfile
+    │   ├── docker-compose.yaml
+    │   └── entrypoint.sh
+    ├── example_data/
+    ├── envs/
+    └── src/
+```
+
+### Step 5: 构建 Docker 镜像
+
+```bash
+cd BacterialAntigenFinder-2
+
+# Docker Compose 构建（注意：compose 文件在 docker/ 子目录）
+docker compose -f docker/docker-compose.yaml build
+
+# 或直接 docker build
+docker build -t bacterial-antigen-finder:latest -f docker/Dockerfile .
+```
+
+> **关于镜像源**：`docker/Dockerfile` 默认配置了清华/交大镜像加速（conda、pip、PyTorch），适合国内网络环境。海外服务器可去掉 `Dockerfile` 中第 27-42 行的镜像源配置以加速构建。
+>
+> 构建时间：首次约 15-30 分钟（需下载 miniconda3 基础镜像 + 创建 5 个 conda 环境）。后续增量构建利用 Docker 层缓存，仅修改的文件层需要重新构建。
+
+### Step 6: 运行示例
+
+**GPU 模式（推荐，Linux + NVIDIA）：**
+
+```bash
+# 大肠杆菌示例数据测试
+docker run --rm --gpus 1 \
+    -v $(pwd)/example_data:/app/data:ro \
+    -v $(pwd)/results/ecoli:/app/results \
+    -v $(pwd)/../BepiPred-3.0-main:/app/models/BepiPred-3.0-main \
+    -v $(pwd)/../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro \
+    -v $(pwd)/../GraphBepi-main:/app/models/GraphBepi-main:ro \
+    -v $(pwd)/../EpiGraph-main:/app/models/EpiGraph-main:ro \
+    -v $(pwd)/../esm_cache:/root/.cache/torch/hub/checkpoints:ro \
+    bacterial-antigen-finder:latest \
+    --fasta /app/data/sample_antigens.fasta \
+    --pdb_dir /app/data/structures/ \
+    --organism_type gram- \
+    --species Escherichia_coli \
+    --models bepipred,discotope,graphbepi,epigraph \
+    --output_dir /app/results/ \
+    --output_format both
+```
+
+**CPU 模式（无 GPU，仅 BepiPred + DiscoTope）：**
+
+```bash
+docker run --rm \
+    -v $(pwd)/example_data:/app/data:ro \
+    -v $(pwd)/results/ecoli:/app/results \
+    -v $(pwd)/../BepiPred-3.0-main:/app/models/BepiPred-3.0-main \
+    -v $(pwd)/../DiscoTope-3.0-master:/app/models/DiscoTope-3.0-master:ro \
+    -v $(pwd)/../esm_cache:/root/.cache/torch/hub/checkpoints:ro \
+    bacterial-antigen-finder:latest \
+    --fasta /app/data/sample_antigens.fasta \
+    --pdb_dir /app/data/structures/ \
+    --organism_type gram- \
+    --species Escherichia_coli \
+    --models bepipred,discotope \
+    --output_dir /app/results/ \
+    --output_format both \
+    --cpu_only
+```
+
+> **注意**：
+> - BepiPred 模型目录**不加 `:ro`**（需写入 ESM 编码缓存）
+> - CPU 模式下 GraphBepi/EpiGraph 需要大量内存（3B 参数模型），Docker 内存 ≥ 16GB 时可能勉强运行，但每个结构耗时 10-30 分钟。建议 CPU 模式只使用 `--models bepipred,discotope`
+> - 使用 Docker Compose 时，`MODEL_BASE_DIR` 环境变量可指定模型目录的父路径，`ESM_CACHE_DIR` 可指定 ESM 缓存目录
+
+### Step 7: 查看结果
+
+```bash
+# 查看输出文件
+ls results/ecoli/
+# analysis_report.html  antigen_candidates.csv  epitope_candidates.csv  run_metadata.json
+
+# 候选抗原
+head -6 results/ecoli/antigen_candidates.csv
+
+# HTML 报告（浏览器打开）
+# results/ecoli/analysis_report.html
+```
+
+### 故障排查
+
+#### 构建阶段
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| conda `IncompleteRead` / HTTP 错误 | 镜像源不稳定 | Dockerfile 已配清华镜像 + 重试机制。如仍失败，重新构建（利用缓存从断点继续） |
+| PyTorch 下载失败 | `download.pytorch.org` 不可达 | Dockerfile 已配交大镜像。海外服务器去掉 Dockerfile 第 68 行的 `-f` 参数 |
+| pip 依赖下载超时 | 网络不稳定 | 已配置 `PIP_RETRIES=10`，重试即可 |
+| `graphbepi_env` 报 `repo.anaconda.com` 错误 | env yaml 文件中 `defaults` 频道覆盖了清华镜像 | 已从所有 `envs/*.yaml` 移除 `- defaults` 行 |
+
+#### 运行阶段
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| BepiPred 报 `File cannot be opened` | 模型目录以 `:ro` 挂载，无法写入 ESM 编码 | 去掉 `:ro` 标志 |
+| DiscoTope 报 `No module named 'discotope3'` | 已修复（`conda run` PYTHONPATH 传递问题） | 确保使用最新代码 |
+| DiscoTope 报 `Found 0/100 XGBoost model JSON files` | 未解压 `models.zip` | 执行 Step 2b |
+| ESM 下载报 `dl.fbaipublicfiles.com` 连接超时 | 该域名国内不可达 | 预下载模型到 `esm_cache/`（Step 3） |
+| GraphBepi/EpiGraph 报 `Killed` | 内存不足 (OOM) | 增加 Docker 内存至 16GB+ 或使用 GPU |
+
+---
+
+## 本地 Conda 环境安装（备选）
 
 ```bash
 # 1. 克隆项目
@@ -127,197 +343,11 @@ chmod +x scripts/setup_envs.sh
 conda activate master_env
 ```
 
-### 方式二：Docker安装（推荐用于Linux服务器）
-
-#### 前置条件
-
-- Linux 系统（Ubuntu 20.04+ 推荐）
-- Docker 20.10+ 和 Docker Compose v2
-- NVIDIA GPU + 驱动 + [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)（GPU运行需要）
-- 磁盘空间 ≥ 50GB（镜像约30GB + 模型文件）
-
-#### Step 1: 克隆项目
-
-```bash
-git clone https://github.com/RuijinHospitalVNAR/AntigenFinder.git
-cd AntigenFinder/BacterialAntigenFinder-2
-```
-
-#### Step 2: 准备预测模型
-
-4个预测模型需要从 GitHub 克隆，放置在项目同级目录的 `models/` 下：
-
-```bash
-cd ..
-mkdir -p models && cd models
-
-# 克隆4个模型（BepiPred需可写，不加 --depth 1 以便缓存ESM编码）
-git clone https://github.com/mabu-car/BepiPred-3.0.git BepiPred-3.0-main
-git clone https://github.com/mabu-car/DiscoTope-3.0.git DiscoTope-3.0-master
-git clone https://github.com/GraphBepi/GraphBepi.git GraphBepi-main
-git clone https://github.com/GraphBepi/EpiGraph.git EpiGraph-main
-
-cd ../BacterialAntigenFinder-2
-```
-
-最终目录结构：
-```
-AntigenFinder/
-├── BacterialAntigenFinder-2/     # 项目代码
-└── models/                       # 4个预测模型
-    ├── BepiPred-3.0-main/
-    ├── DiscoTope-3.0-master/
-    ├── GraphBepi-main/
-    └── EpiGraph-main/
-```
-
-#### Step 3: 准备PDB结构文件
-
-DiscoTope/GraphBepi/EpiGraph 需要 PDB 结构文件。从 [AlphaFold DB](https://alphafold.ebi.ac.uk/) 下载对应蛋白结构：
-
-```bash
-mkdir -p example_data/structures
-
-# 示例：下载铜绿假单胞菌 OprF (UniProt: P02443) 的AlphaFold预测结构
-wget https://alphafold.ebi.ac.uk/files/AF-P02443-F1-model_v4.pdb \
-    -O example_data/structures/OprF_PSEAE.pdb
-
-# 为FASTA中每个蛋白下载对应PDB（文件名需与FASTA header中的protein_id一致）
-```
-
-> **提示**：如果暂时没有PDB文件，可以只运行序列基的 BepiPred 模型（见下方"仅序列模式"）。
-
-#### Step 4: 构建Docker镜像
-
-```bash
-cd BacterialAntigenFinder-2/docker
-
-# 构建完整镜像（含4个conda环境，首次约15-30分钟）
-docker compose build
-```
-
-> 镜像基于 `continuumio/miniconda3:latest`，内置4个独立conda环境，PyTorch 2.5.1+cu121（兼容CUDA 12.1）。
-
-#### Step 5: 运行示例
-
-**方式A：Docker Compose（推荐）**
-
-```bash
-cd docker
-
-# 运行铜绿假单胞菌示例（使用 example_data 中的数据）
-docker compose run --rm antigen-finder-test
-```
-
-**方式B：docker run 手动运行**
-
-```bash
-# 创建输出目录
-mkdir -p results/pa
-
-# GPU运行（需要 nvidia-container-toolkit）
-docker run --rm --gpus all \
-    -v $(pwd)/example_data:/app/data:ro \
-    -v $(pwd)/results/pa:/app/results \
-    -v $(pwd)/../models:/app/models:ro \
-    bacterial-antigen-finder:latest \
-    --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
-    --pdb_dir /app/data/structures/ \
-    --organism_type gram- \
-    --species Pseudomonas_aeruginosa \
-    --models bepipred,discotope,graphbepi,epigraph \
-    --output_dir /app/results/ \
-    --output_format both
-```
-
-> **重要**：BepiPred 模型目录需要**可写**（不加 `:ro`），因为需要缓存 ESM-2 编码。如需写入，将 models 挂载改为 `-v $(pwd)/../models:/app/models`（去掉 `:ro`）。
-
-**仅序列模式（无PDB文件，仅运行BepiPred）**
-
-```bash
-docker run --rm --gpus all \
-    -v $(pwd)/example_data:/app/data:ro \
-    -v $(pwd)/results/pa:/app/results \
-    -v $(pwd)/../models:/app/models \
-    bacterial-antigen-finder:latest \
-    --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
-    --pdb_dir /app/data/structures/ \
-    --organism_type gram- \
-    --species Pseudomonas_aeruginosa \
-    --models bepipred \
-    --output_dir /app/results/ \
-    --output_format both
-```
-
-#### Step 6: 查看结果
-
-```bash
-# 查看输出文件
-ls results/pa/
-# antigen_candidates.csv  epitope_candidates.csv  analysis_report.html  ...
-
-# 查看候选抗原列表
-head -6 results/pa/antigen_candidates.csv
-
-# 查看表位候选列表
-head -6 results/pa/epitope_candidates.csv
-
-# 在浏览器中打开HTML报告
-# 将 results/pa/analysis_report.html 下载到本地后用浏览器打开
-```
-
-#### CPU模式（无GPU）
-
-若无GPU，去掉 `--gpus all`，并添加 `--cpu_only` 参数：
-
-```bash
-docker run --rm \
-    -v $(pwd)/example_data:/app/data:ro \
-    -v $(pwd)/results/pa:/app/results \
-    -v $(pwd)/../models:/app/models \
-    bacterial-antigen-finder:latest \
-    --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
-    --pdb_dir /app/data/structures/ \
-    --species Pseudomonas_aeruginosa \
-    --models bepipred \
-    --cpu_only \
-    --output_dir /app/results/
-```
-
-> **注意**：CPU模式下 GraphBepi/EpiGraph 可能因缺少CUDA而无法运行，建议仅使用 `--models bepipred`。
-
-#### GPU挂载方式（NVML故障场景）
-
-如果 `--gpus all` 因 GPU 硬件故障报 NVML 初始化失败，可改用 `--device` 方式绕过：
-
-```bash
-# 查询宿主机 NVIDIA 驱动库版本
-ls /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.*
-ls /lib/x86_64-linux-gnu/libcuda.so.*
-
-# 使用 --device 方式（将 <VERSION> 替换为实际版本号）
-docker run --rm \
-    --device=/dev/nvidia0:/dev/nvidia0 \
-    --device=/dev/nvidiactl:/dev/nvidiactl \
-    --device=/dev/nvidia-uvm:/dev/nvidia-uvm \
-    --device=/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools \
-    -v /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.<VERSION>:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro \
-    -v /lib/x86_64-linux-gnu/libcuda.so.<VERSION>:/lib/x86_64-linux-gnu/libcuda.so.1:ro \
-    -v $(pwd)/example_data:/app/data:ro \
-    -v $(pwd)/results/pa:/app/results \
-    -v $(pwd)/../models:/app/models \
-    bacterial-antigen-finder:latest \
-    --fasta /app/data/pseudomonas_aeruginosa_antigens.fasta \
-    --pdb_dir /app/data/structures/ \
-    --species Pseudomonas_aeruginosa \
-    --output_dir /app/results/
-```
-
 ### 依赖环境
 
 - Python 3.9+
 - PyYAML, pandas, numpy, biopython, plotly
-- 各预测模型独立Conda环境（见 `envs/` 目录，Docker镜像已内置）
+- 各预测模型独立Conda环境（见 `envs/` 目录）
 
 ## 使用方式
 
@@ -375,10 +405,6 @@ python main.py \
 | `--cpu_only` | flag | False | 仅使用CPU |
 | `--workers` | int | 4 | 并行工作线程数 |
 | `--config, -c` | str | None | 自定义配置文件路径 |
-
-### Docker运行
-
-Docker部署和运行的完整指南请参考上方 [方式二：Docker安装](#方式二docker安装推荐用于linux服务器) 章节，包含镜像构建、模型准备、GPU/CPU运行、示例复现等完整步骤。
 
 ### 端到端测试
 
@@ -532,10 +558,6 @@ BacterialAntigenFinder/
 │   └── pseudomonas_aeruginosa/          # 铜绿假单胞菌
 ├── examples/                            # 完整运行示例
 │   └── docker_gpu_example/              # Docker GPU 多物种示例
-│       ├── README.md                    # 示例说明文档
-│       ├── ecoli/                       # 大肠杆菌运行结果
-│       ├── pseudomonas_aeruginosa/      # 铜绿假单胞菌运行结果
-│       └── klebsiella_pneumoniae/       # 肺炎克雷伯菌运行结果
 ├── docker/                              # Docker部署
 │   ├── Dockerfile                       # 完整构建
 │   ├── Dockerfile.light                 # 轻量构建
@@ -548,84 +570,9 @@ BacterialAntigenFinder/
 │   ├── run_test_docker.sh              # Docker测试
 │   └── validate_output.py              # 输出验证
 ├── tests/                               # 测试用例
-│   ├── test_pipeline.py                 # Pipeline单元测试
-│   └── test_dr_resistant_bacteria.py    # 耐药细菌专项测试
 ├── envs/                                # Conda环境配置
 └── docs/                                # 文档
 ```
-
-## 故障排查
-
-### 1. Docker GPU 相关问题
-
-#### 问题：`docker run --gpus all` 报 NVML 初始化失败
-
-**原因**：服务器 GPU 硬件故障（如某块 GPU 损坏）导致 `nvidia-container-cli` 无法初始化 NVML。
-
-**解决方案**：改用 `--device` 方式直接挂载 GPU 设备文件，绕过 NVML：
-
-```bash
-docker run --rm \
-    --device=/dev/nvidia0:/dev/nvidia0 \
-    --device=/dev/nvidiactl:/dev/nvidiactl \
-    --device=/dev/nvidia-uvm:/dev/nvidia-uvm \
-    --device=/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools \
-    -v /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.<VERSION>:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro \
-    -v /lib/x86_64-linux-gnu/libcuda.so.<VERSION>:/lib/x86_64-linux-gnu/libcuda.so.1:ro \
-    ... \
-    bacterial-antigen-finder:latest
-```
-
-#### 问题：PyTorch 报 CUDA 版本不匹配
-
-**原因**：pip 默认安装的 PyTorch 可能使用更高版本的 CUDA（如 12.8），与宿主机驱动不兼容。
-
-**解决方案**：构建镜像时指定 CUDA 12.1 版本的 PyTorch（Dockerfile 已配置）：
-
-```dockerfile
-RUN /opt/conda/envs/bepipred_env/bin/pip install --no-cache-dir \
-    torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-```
-
-### 2. BepiPred 相关问题
-
-#### 问题：BepiPred 运行报 `File cannot be opened` 错误
-
-**原因**：BepiPred 需要将 ESM-2 编码缓存到模型目录的 `esm_encodings/` 子目录，若模型目录以只读方式挂载（`:ro`）则无法写入。
-
-**解决方案**：挂载模型目录时**不要**加 `:ro`：
-
-```bash
-# 错误 ❌
--v /path/to/BepiPred-3.0-main:/app/models/BepiPred-3.0-main:ro
-
-# 正确 ✅
--v /path/to/BepiPred-3.0-main:/app/models/BepiPred-3.0-main
-```
-
-#### 问题：BepiPred 输出 CSV 列名无法识别
-
-**原因**：BepiPred-3.0 的 `raw_output.csv` 列名为 `Accession, Residue, BepiPred-3.0 score, BepiPred-3.0 linear epitope score`，与早期版本的解析器不兼容。
-
-**解决方案**：已修复，解析器现在自动检测列名。若仍遇到问题，请检查 `src/predictors/bepipred_wrapper.py` 的 `_parse_output` 方法。
-
-### 3. 共识评分相关问题
-
-#### 问题：单模型运行时无共识表位输出
-
-**原因**：默认 `min_votes=2`，单模型运行时 `vote_count` 最大为1，无法满足投票阈值。
-
-**解决方案**：已实现自适应调整机制，`min_votes` 会自动调整为 `min(configured_min_votes, actual_num_predictors)`。若仍遇到问题，可手动指定 `--min_votes 1`。
-
-### 4. 其他问题
-
-#### 问题：`KeyError: 'protein_id'` 当共识评分为空
-
-**解决方案**：已修复，`CandidateRanker` 现在会检查空 DataFrame 并跳过排序。
-
-#### 问题：`_normalize_id` 将 `protein_A.pdb` 识别为 `protein_a` 而非 `protein`
-
-**解决方案**：已修复，现在先移除 `.pdb` 后缀再检查单字母链标识符。
 
 ## 引用
 
